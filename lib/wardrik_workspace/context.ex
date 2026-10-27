@@ -8,7 +8,8 @@ defmodule WardrikWorkspace.Context do
   It takes `WardrikWorkspace`'s options, `:files`, and `:max_bytes`, how much of them it reads, 16 KB
   unless set. The budget is shared out smallest file first, so one long file never keeps the others
   out. A file longer than its share is read from its start and its end, and where it's the agent's
-  own, the agent is asked to rewrite it shorter.
+  own, the agent is asked to rewrite it shorter. The labels of the files it reads join the turn's
+  latest message, so the run carries them.
   """
 
   @behaviour WardrikCore.Middleware
@@ -23,10 +24,12 @@ defmodule WardrikWorkspace.Context do
 
   @impl WardrikCore.Middleware
   def call(%Context{step: :turn, instructions: instructions} = context, next, opts) do
-    text =
-      text(Spec.new(opts), Keyword.get(opts, :files, []), Keyword.get(opts, :max_bytes, 16_384))
+    spec = Spec.new(opts)
+    files = Keyword.get(opts, :files, [])
+    read = read(spec, files, Keyword.get(opts, :max_bytes, 16_384))
+    context = labelled(context, read)
 
-    case next.(%{context | instructions: joined(instructions, text)}) do
+    case next.(%{context | instructions: joined(instructions, told(spec, files, read))}) do
       {:ok, context} -> {:ok, %{context | instructions: instructions}}
       {:park, reason, context} -> {:park, reason, %{context | instructions: instructions}}
       {:error, reason} -> {:error, reason}
@@ -35,14 +38,30 @@ defmodule WardrikWorkspace.Context do
 
   def call(context, next, _opts), do: next.(context)
 
+  defp labelled(context, read) do
+    case read |> Enum.flat_map(&Map.get(&1, :labels, [])) |> Enum.uniq() do
+      [] -> context
+      labels -> %{context | messages: last_labelled(context.messages, labels)}
+    end
+  end
+
+  defp last_labelled([], _labels), do: []
+
+  defp last_labelled(messages, labels) do
+    {last, earlier} = List.pop_at(messages, -1)
+    held = Map.get(last.metadata, :labels, [])
+    metadata = Map.put(last.metadata, :labels, Enum.sort(Enum.uniq(held ++ labels)))
+    earlier ++ [%{last | metadata: metadata}]
+  end
+
   defp joined(nil, text), do: text
   defp joined(instructions, text), do: instructions <> "\n\n" <> text
 
   @doc "Returns what `spec`'s agent is told of its workspace, reading `files` within `budget` bytes."
   @spec text(Spec.t(), [String.t()], pos_integer()) :: String.t()
-  def text(spec, files, budget) do
-    read = read(spec, files, budget)
+  def text(spec, files, budget), do: told(spec, files, read(spec, files, budget))
 
+  defp told(spec, files, read) do
     [@heading, shown(read), crowded(read), unwritten(read), listing(spec, files), shared(spec)]
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n\n")
@@ -57,7 +76,13 @@ defmodule WardrikWorkspace.Context do
   defp found(spec, path) do
     with {:ok, mount, rest} <- Spec.resolve(spec, path),
          {:ok, file, version} <- Files.read(spec.store, mount.tree, rest) do
-      %{path: path, state: :found, content: file.content, version: version}
+      %{
+        path: path,
+        state: :found,
+        content: file.content,
+        version: version,
+        labels: WardrikWorkspace.File.labels(file)
+      }
     else
       _unwritten -> %{path: path, state: :unwritten}
     end

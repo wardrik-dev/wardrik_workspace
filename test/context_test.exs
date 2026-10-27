@@ -64,6 +64,28 @@ defmodule WardrikWorkspace.ContextTest do
     assert text =~ "<file path=\"SOUL.md\""
   end
 
+  test "labels the turn with what the files it reads hold", %{opts: opts} do
+    reader = %{
+      WardrikCore.Context.new(agent_id: "a")
+      | messages: [ReqLLM.Context.user("Hi.", %{labels: ["outside"]})]
+    }
+
+    tools = Map.new(WardrikWorkspace.tools(nil, opts), &{&1.name, &1})
+    tools["write_file"].run.(%{path: "MEMORY.md", content: "From a page."}, reader)
+
+    turn = %{
+      WardrikCore.Context.new(agent_id: "a")
+      | step: :turn,
+        messages: [ReqLLM.Context.user("Go.")]
+    }
+
+    assert {:ok, %{messages: [%{metadata: %{labels: ["outside"]}}]}} =
+             Context.call(turn, &{:ok, &1}, opts ++ [files: ["MEMORY.md"]])
+
+    assert {:ok, %{messages: [%{metadata: metadata}]}} = Context.call(turn, &{:ok, &1}, opts)
+    refute Map.has_key?(metadata, :labels)
+  end
+
   test "adds itself to a turn's instructions, and leaves them as they were after", %{opts: opts} do
     turn = %WardrikCore.Context{
       WardrikCore.Context.new(agent_id: "a")
@@ -85,6 +107,9 @@ defmodule WardrikWorkspace.ContextTest do
     assert {:park, :waiting, %{instructions: "Be brief."}} = Context.call(turn, parking, opts)
     assert {:error, :boom} = Context.call(turn, fn _context -> {:error, :boom} end, opts)
 
+    bare = %{turn | instructions: nil}
+    assert {:ok, %{messages: []}} = Context.call(bare, next, opts ++ [files: ["MEMORY.md"]])
+    assert_received {:instructions, _text}
     bare = %{turn | instructions: nil}
     assert {:ok, %{instructions: nil}} = Context.call(bare, next, opts)
     assert_received {:instructions, "# Your workspace" <> _rest}

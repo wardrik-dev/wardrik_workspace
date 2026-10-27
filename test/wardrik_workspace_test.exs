@@ -28,8 +28,10 @@ defmodule WardrikWorkspaceTest do
   end
 
   defp call(%{tools: tools, agent: agent}, name, args) do
-    {:ok, answer} = Map.fetch!(tools, name).run.(args, agent)
-    answer
+    case Map.fetch!(tools, name).run.(args, agent) do
+      {:ok, %ReqLLM.ToolResult{output: answer}} -> answer
+      {:ok, answer} -> answer
+    end
   end
 
   defp error(answer), do: answer.error.code
@@ -116,6 +118,42 @@ defmodule WardrikWorkspaceTest do
 
     assert error(call(context, "search_files", %{pattern: "("})) == :bad_pattern
   end
+
+  test "a file keeps the labels of what its writers had read, and its readers carry them",
+       context do
+    outside = %{context | agent: labelled(context.agent, ["outside"])}
+
+    call(outside, "write_file", %{path: "notes/page.md", content: "From the web."})
+    call(context, "write_file", %{path: "notes/mine.md", content: "Mine."})
+
+    assert {:ok, %ReqLLM.ToolResult{output: %{ok: true}, metadata: %{labels: ["outside"]}}} =
+             run(context, "read_file", %{path: "notes/page.md"})
+
+    assert {:ok, %{ok: true}} = run(context, "read_file", %{path: "notes/mine.md"})
+
+    call(context, "write_file", %{path: "notes/page.md", content: " More.", append: true})
+
+    assert {:ok, %ReqLLM.ToolResult{metadata: %{labels: ["outside"]}}} =
+             run(context, "read_file", %{path: "notes/page.md"})
+
+    call(%{context | agent: labelled(context.agent, ["books"])}, "edit_file", %{
+      path: "notes/mine.md",
+      old: "Mine",
+      new: "Ours"
+    })
+
+    assert {:ok, %ReqLLM.ToolResult{metadata: %{labels: ["books", "outside"]}}} =
+             run(context, "search_files", %{pattern: "."})
+
+    assert {:ok, %ReqLLM.ToolResult{metadata: %{labels: ["books", "outside"]}}} =
+             run(context, "list_files", %{})
+  end
+
+  defp run(%{tools: tools, agent: agent}, name, args),
+    do: Map.fetch!(tools, name).run.(args, agent)
+
+  defp labelled(agent, labels),
+    do: %{agent | messages: [ReqLLM.Context.user("Go.", %{labels: labels})]}
 
   test "deletes a file, and says whether it was there", context do
     call(context, "write_file", %{path: "a.md", content: "x"})

@@ -2,7 +2,8 @@ defmodule WardrikWorkspace.Writes do
   @moduledoc """
   The file tools that change files: writing, editing and deleting one. Each changes the file over
   the version it read. An append, an edit or a delete reads it again and tries once more where
-  another writer got there first, up to eight times.
+  another writer got there first, up to eight times. A file written whole holds the labels of what
+  the writing run had read; an append or an edit keeps those it had too.
   """
 
   alias WardrikCore.Context
@@ -66,7 +67,7 @@ defmodule WardrikWorkspace.Writes do
   defp appended(spec, mount, path, content, context) do
     case Files.read(spec.store, mount.tree, path) do
       {:ok, file, version} ->
-        written(spec, mount, path, file.content <> content, version, context)
+        kept(spec, mount, path, file, file.content <> content, version, context)
 
       :none ->
         written(spec, mount, path, content, nil, context)
@@ -97,7 +98,7 @@ defmodule WardrikWorkspace.Writes do
       {count, _all} ->
         content = String.replace(file.content, args[:old], args[:new], global: args[:all] == true)
 
-        with {:ok, answer} <- written(spec, mount, path, content, version, context),
+        with {:ok, answer} <- kept(spec, mount, path, file, content, version, context),
              do: {:ok, Map.put(answer, :replaced, if(args[:all], do: count, else: 1))}
     end
   end
@@ -113,12 +114,22 @@ defmodule WardrikWorkspace.Writes do
     end
   end
 
-  defp written(_spec, mount, path, content, _version, _context)
+  defp kept(spec, mount, path, file, content, version, context),
+    do: written(spec, mount, path, content, version, context, File.labels(file))
+
+  defp written(spec, mount, path, content, version, context, kept \\ [])
+
+  defp written(_spec, mount, path, content, _version, _context, _kept)
        when byte_size(content) > @max_file_bytes,
        do: Tools.failed(:too_large, "#{Spec.shown(mount, path)} would be over 4 MiB")
 
-  defp written(spec, mount, path, content, version, context) do
-    file = %File{content: content, by: context.agent_id, at: DateTime.utc_now()}
+  defp written(spec, mount, path, content, version, context, kept) do
+    file = %File{
+      content: content,
+      by: context.agent_id,
+      at: DateTime.utc_now(),
+      labels: Enum.sort(Enum.uniq(kept ++ Context.labels(context)))
+    }
 
     with {:ok, version} <- Files.write(spec.store, mount.tree, path, file, version),
          do: {:ok, %{ok: true, path: Spec.shown(mount, path), version: version}}

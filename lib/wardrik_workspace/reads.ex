@@ -1,6 +1,10 @@
 defmodule WardrikWorkspace.Reads do
-  @moduledoc "The file tools that change nothing: reading a file, listing files, and finding lines."
+  @moduledoc """
+  The file tools that change nothing: reading a file, listing files, and finding lines. Each answers
+  with the labels of the files it shows, so the run that reads them carries them.
+  """
 
+  alias WardrikWorkspace.File
   alias WardrikWorkspace.Files
   alias WardrikWorkspace.Path
   alias WardrikWorkspace.Spec
@@ -21,15 +25,17 @@ defmodule WardrikWorkspace.Reads do
       offset = args[:offset] || 1
       {shown, next} = window(lines, offset, min(args[:limit] || @max_lines, @max_lines))
 
-      {:ok,
-       %{
-         ok: true,
-         path: args[:path],
-         version: version,
-         lines: length(lines),
-         content: shown,
-         next_offset: next
-       }}
+      File.labelled(
+        %{
+          ok: true,
+          path: args[:path],
+          version: version,
+          lines: length(lines),
+          content: shown,
+          next_offset: next
+        },
+        [file]
+      )
     end
   end
 
@@ -44,11 +50,16 @@ defmodule WardrikWorkspace.Reads do
       |> Enum.filter(fn {path, _file} -> Path.match?(glob, path) end)
       |> Enum.sort_by(fn {_path, file} -> file.at end, {:desc, DateTime})
 
+    shown = Enum.take(files, @max_listed)
+
     listed =
-      for {path, file} <- Enum.take(files, @max_listed),
+      for {path, file} <- shown,
           do: %{path: path, bytes: byte_size(file.content), at: file.at, by: file.by}
 
-    {:ok, %{ok: true, files: listed, more: max(length(files) - @max_listed, 0)}}
+    File.labelled(
+      %{ok: true, files: listed, more: max(length(files) - @max_listed, 0)},
+      Enum.map(shown, fn {_path, file} -> file end)
+    )
   end
 
   @doc "Finds the lines a regular expression matches, with the lines around them where asked."
@@ -68,14 +79,18 @@ defmodule WardrikWorkspace.Reads do
       for {path, file} <- all(spec),
           Path.match?(glob, path),
           match <- matches(path, file.content, regex, around),
-          do: match
+          do: {match, file}
 
-    {:ok,
-     %{
-       ok: true,
-       matches: Enum.take(matches, @max_matches),
-       more: max(length(matches) - @max_matches, 0)
-     }}
+    shown = Enum.take(matches, @max_matches)
+
+    File.labelled(
+      %{
+        ok: true,
+        matches: Enum.map(shown, fn {match, _file} -> match end),
+        more: max(length(matches) - @max_matches, 0)
+      },
+      Enum.map(shown, fn {_match, file} -> file end)
+    )
   end
 
   defp matches(path, content, regex, around) do
