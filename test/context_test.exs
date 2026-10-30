@@ -87,11 +87,8 @@ defmodule WardrikWorkspace.ContextTest do
   end
 
   test "adds itself to a turn's instructions, and leaves them as they were after", %{opts: opts} do
-    turn = %WardrikCore.Context{
-      WardrikCore.Context.new(agent_id: "a")
-      | step: :turn,
-        instructions: "Be brief."
-    }
+    context = WardrikCore.Context.new(agent_id: "a")
+    turn = %{context | step: :turn, instructions: "Be brief."}
 
     next = fn context ->
       send(self(), {:instructions, context.instructions})
