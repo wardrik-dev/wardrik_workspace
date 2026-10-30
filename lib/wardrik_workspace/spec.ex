@@ -1,7 +1,10 @@
 defmodule WardrikWorkspace.Spec do
   @moduledoc """
-  A spec is what an agent's file tools reach: the `store` its files are kept in, its `own` tree, and
-  the trees `shared` with it, each seen under `shared/<name>/`.
+  What an agent's file tools reach.
+
+    * `:store` - the `WardrikStore` the files are kept in.
+    * `:own` - the agent's own `WardrikWorkspace.Mount`.
+    * `:shared` - mounts shared with the agent, each under `shared/<name>/`.
   """
 
   alias WardrikWorkspace.Mount
@@ -12,7 +15,7 @@ defmodule WardrikWorkspace.Spec do
 
   @type t() :: %__MODULE__{store: WardrikStore.t(), own: Mount.t(), shared: [Mount.t()]}
 
-  @doc "Builds a spec from `:store`, `:tree`, the agent's own, and `:shared`, its mounts."
+  @doc "Builds a spec from `WardrikWorkspace`'s options: `:store`, `:tree` and `:shared`."
   @spec new(keyword()) :: t()
   def new(opts) do
     %__MODULE__{
@@ -22,18 +25,18 @@ defmodule WardrikWorkspace.Spec do
     }
   end
 
-  @doc "Returns the mount `path` is in, and the path within its tree, or why it names no file."
+  @doc "Returns the mount `path` is in and the path within its tree, or `{:error, reason}`."
   @spec resolve(t(), term()) :: {:ok, Mount.t(), String.t()} | {:error, String.t()}
   def resolve(spec, path) do
     with {:ok, path} <- Path.normalize(path), do: mounted(spec, path)
   end
 
-  @doc "Returns the path `path` in `mount`'s tree is shown at."
+  @doc "Returns `path` as the agent sees it, prefixed with `shared/<name>/` for a shared mount."
   @spec shown(Mount.t(), String.t()) :: String.t()
   def shown(%Mount{name: nil}, path), do: path
   def shown(%Mount{name: name}, path), do: "shared/#{name}/#{path}"
 
-  @doc "Returns every tree the spec reaches: its own first."
+  @doc "Returns every mount the spec reaches, its own first."
   @spec mounts(t()) :: [Mount.t()]
   def mounts(%__MODULE__{own: own, shared: shared}), do: [own | shared]
 

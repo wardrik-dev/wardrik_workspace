@@ -1,19 +1,23 @@
 defmodule WardrikWorkspace.Tools do
   @moduledoc """
-  The six file tools, and what each takes:
+  Builds the six file tools.
 
-  | Tool | Takes | Answers |
+  | Tool | Arguments | Answers |
   | --- | --- | --- |
-  | `read_file` | `path`, `offset`, `limit` | numbered lines, at most 2,000 or 128 KB, and the file's version |
-  | `write_file` | `path`, `content`, `version`, `append` | the new version; over a file that exists it takes the version read; an append takes none |
-  | `edit_file` | `path`, `old`, `new`, `all` | how many places changed; `old` must appear once unless `all` |
-  | `list_files` | `pattern`, a glob | paths, newest first, at most 500 |
-  | `search_files` | `pattern`, a regular expression; `glob`; `context` | matching lines, at most 200 |
-  | `delete_file` | `path` | whether it was there |
+  | `read_file` | `path`, `offset`, `limit` | Numbered lines, at most 2,000 or 128 KB, and the version |
+  | `write_file` | `path`, `content`, `version`, `append` | The new version |
+  | `edit_file` | `path`, `old`, `new`, `all` | How many places changed |
+  | `list_files` | `pattern` (a glob) | Paths, newest first, at most 500 |
+  | `search_files` | `pattern` (a regex), `glob`, `context` | Matching lines, at most 200 |
+  | `delete_file` | `path` | Whether the file was there |
 
-  A tool that can't do what it's asked answers `%{ok: false, error: %{code: ..., message: ...}}`,
-  and the turn carries on. Each call's `:resources` is its path, or the glob it lists or searches,
-  so a policy can name one, as `write_file(notes/*)`.
+  `write_file` needs the version read to replace an existing file. With `append`, it needs none.
+  `edit_file` needs `old` to appear exactly once, unless `all` is true.
+
+  A tool that fails answers `%{ok: false, error: %{code: ..., message: ...}}`. The turn carries on.
+
+  Each call's `:resources` is its path, or the glob it lists or searches. A policy can match it, as
+  `write_file(notes/*)`.
   """
 
   alias WardrikCore.Tool
@@ -132,7 +136,7 @@ defmodule WardrikWorkspace.Tools do
   defp delete_file,
     do: {"Delete a file in your workspace. Says whether it was there.", [path: @path]}
 
-  @doc "Returns a tool's answer that it couldn't do what it was asked, with a `code` and why."
+  @doc "Returns a tool's failure answer, with `code` and `message`."
   @spec failed(atom(), String.t()) :: {:ok, map()}
   def failed(code, message), do: {:ok, %{ok: false, error: %{code: code, message: message}}}
 end

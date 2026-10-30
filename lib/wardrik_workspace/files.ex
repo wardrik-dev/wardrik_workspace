@@ -1,11 +1,15 @@
 defmodule WardrikWorkspace.Files do
   @moduledoc """
-  Files keeps trees of files in a `WardrikStore`, each file with a version of its own. Every change
-  is made over the version read: a write where nothing is, or over the file as it was read, and
-  `{:error, :conflict}` where it changed since. That keeps two writers from losing each other's
-  work.
+  Stores trees of files in a `WardrikStore`, each file with its own version.
 
-  A tree's name is opaque: `shared/acme` doesn't hold `shared/acme/runbooks`.
+  Every change is made over a version:
+
+    * `nil` - writes only where no file is.
+    * a version - writes only if the file is still at that version.
+
+  Otherwise it returns `{:error, :conflict}`. This keeps two writers from losing each other's work.
+
+  Tree names are opaque: tree `shared/acme` doesn't contain tree `shared/acme/runbooks`.
   """
 
   alias WardrikWorkspace.File
@@ -22,7 +26,12 @@ defmodule WardrikWorkspace.Files do
     end
   end
 
-  @doc "Writes `file` at `path` in `tree`: where nothing is, for a `nil` version, or over `version`."
+  @doc """
+  Writes `file` at `path` in `tree`.
+
+  With a `nil` version, writes only where no file is. Otherwise writes only over `version`.
+  Returns `{:error, :conflict}` if that doesn't hold.
+  """
   @spec write(WardrikStore.t(), String.t(), String.t(), File.t(), version() | nil) ::
           {:ok, version()} | {:error, :conflict | term()}
   def write(store, tree, path, %File{} = file, version) do
@@ -31,7 +40,7 @@ defmodule WardrikWorkspace.Files do
          do: {:ok, version(written)}
   end
 
-  @doc "Deletes the file at `path` in `tree`, where its version is still `version`."
+  @doc "Deletes the file at `path` in `tree`. Returns `{:error, :conflict}` unless it's still at `version`."
   @spec delete(WardrikStore.t(), String.t(), String.t(), version()) ::
           :ok | {:error, :conflict | term()}
   def delete(store, tree, path, version) do

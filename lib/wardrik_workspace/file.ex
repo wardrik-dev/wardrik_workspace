@@ -1,7 +1,11 @@
 defmodule WardrikWorkspace.File do
   @moduledoc """
-  A file is what a workspace holds at a path: its `content`, who wrote it last, `by`, and `at`, and
-  the `labels` of what the runs that wrote it had read, such as `"outside"`.
+  A file in a workspace.
+
+    * `:content` - the file's text.
+    * `:by` - the agent that last wrote it.
+    * `:at` - when it was last written.
+    * `:labels` - labels of what the writing runs had read, such as `"outside"`.
   """
 
   @enforce_keys [:content]
@@ -14,11 +18,16 @@ defmodule WardrikWorkspace.File do
           labels: [String.t()]
         }
 
-  @doc "Returns the file's labels, none for one written before files kept them."
+  @doc "Returns the file's labels. Returns `[]` for a file written before files kept labels."
   @spec labels(t()) :: [String.t()]
   def labels(%__MODULE__{} = file), do: Map.get(file, :labels, [])
 
-  @doc "Answers with `answer`, labelled with what `files` hold, as a tool's answer carries them."
+  @doc """
+  Wraps a tool's `answer` with the labels of `files`.
+
+  Returns `{:ok, answer}` when the files have no labels, and `{:ok, %ReqLLM.ToolResult{}}` with
+  the labels in its metadata otherwise.
+  """
   @spec labelled(map(), [t()]) :: {:ok, map() | ReqLLM.ToolResult.t()}
   def labelled(answer, files) do
     case files |> Enum.flat_map(&labels/1) |> Enum.uniq() |> Enum.sort() do

@@ -1,21 +1,29 @@
 defmodule WardrikWorkspace do
   @moduledoc """
-  Files for agents: a tree of their own, kept in a `WardrikStore` so it outlives the node, trees
-  they share, and files read into every turn. It's a `WardrikCore.Capability` that offers six file
-  tools, `read_file`, `write_file`, `edit_file`, `list_files`, `search_files` and `delete_file`:
+  File tools for agents, kept in a `WardrikStore`.
+
+  A `WardrikCore.Capability` that gives an agent six tools over a tree of files: `read_file`,
+  `write_file`, `edit_file`, `list_files`, `search_files` and `delete_file`.
+
+      tree = "agents/acme/agent/triage"
 
       WardrikCore.start_agent(
         agent_id: "acme/triage",
         model: "anthropic:claude-haiku-4-5",
-        capabilities: [{WardrikWorkspace, store: store, tree: "agents/acme/agent/triage"}],
-        middleware: [{WardrikWorkspace.Context, store: store, tree: "agents/acme/agent/triage", files: ["MEMORY.md"]}]
+        capabilities: [{WardrikWorkspace, store: store, tree: tree}],
+        middleware: [{WardrikWorkspace.Context, store: store, tree: tree, files: ["MEMORY.md"]}]
       )
 
-  It takes `:store`, `:tree`, the agent's own, and `:shared`, the `WardrikWorkspace.Mount`s of trees
-  shared with it. See `WardrikWorkspace.Tools` for what each tool takes, and
-  `WardrikWorkspace.Context` for what an agent reads as each turn begins.
+  Use it when an agent should keep notes, or work on files with others.
 
-  Reach for this when an agent should keep notes, or work on files with others.
+  ## Options
+
+    * `:store` - required. The `WardrikStore` the files are kept in.
+    * `:tree` - required. The agent's own tree.
+    * `:shared` - `WardrikWorkspace.Mount`s for trees shared with the agent. `[]` unless set.
+
+  See `WardrikWorkspace.Tools` for each tool's arguments, and `WardrikWorkspace.Context` for
+  reading files into every turn.
   """
 
   @behaviour WardrikCore.Capability

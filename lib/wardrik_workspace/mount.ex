@@ -1,7 +1,10 @@
 defmodule WardrikWorkspace.Mount do
   @moduledoc """
-  A mount is a tree an agent sees, by its `name` and the `tree` it holds: its own, or one shared with
-  it under `shared/<name>/`. `mode` is `:write`, or `:read` where it may only read.
+  A tree an agent sees.
+
+    * `:tree` - the tree's name in the store.
+    * `:name` - where it's shown, as `shared/<name>/`. `nil` for the agent's own tree.
+    * `:mode` - `:write`, or `:read` for read only. `:write` unless set.
   """
 
   @enforce_keys [:tree]

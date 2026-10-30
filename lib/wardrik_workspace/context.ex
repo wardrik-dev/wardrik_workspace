@@ -1,15 +1,34 @@
 defmodule WardrikWorkspace.Context do
   @moduledoc """
-  The middleware that tells an agent what its workspace holds as each turn begins, under
-  `# Your workspace` at the end of its instructions: the `:files` named, in the order named, each
-  with its version, the ones not written yet, the names of the others at the top of its tree, and
-  the trees shared with it.
+  Middleware that reads workspace files into the agent's instructions as each turn begins.
 
-  It takes `WardrikWorkspace`'s options, `:files`, and `:max_bytes`, how much of them it reads, 16 KB
-  unless set. The budget is shared out smallest file first, so one long file never keeps the others
-  out. A file longer than its share is read from its start and its end, and where it's the agent's
-  own, the agent is asked to rewrite it shorter. The labels of the files it reads join the turn's
-  latest message, so the run carries them.
+      middleware: [{WardrikWorkspace.Context, store: store, tree: tree, files: ["MEMORY.md"]}]
+
+  It appends a `# Your workspace` section to the instructions. The section holds:
+
+    1. Each of `:files`, in order, with its version.
+    2. The `:files` not written yet.
+    3. The names of the other files at the top of the agent's tree.
+    4. The trees shared with the agent.
+
+  The instructions are restored after the turn.
+
+  ## Options
+
+  Takes `WardrikWorkspace`'s options, plus:
+
+    * `:files` - paths to read into each turn. `[]` unless set.
+    * `:max_bytes` - how much of `:files` to read in total. `16_384` unless set.
+
+  ## Budget
+
+  The budget is shared out smallest file first, so one long file can't crowd out the others. A
+  file over its share is cut to its start and end. If it's in the agent's own tree, the agent is
+  asked to rewrite it shorter.
+
+  ## Labels
+
+  The labels of the files read are added to the turn's latest message, so the run carries them.
   """
 
   @behaviour WardrikCore.Middleware
@@ -57,7 +76,7 @@ defmodule WardrikWorkspace.Context do
   defp joined(nil, text), do: text
   defp joined(instructions, text), do: instructions <> "\n\n" <> text
 
-  @doc "Returns what `spec`'s agent is told of its workspace, reading `files` within `budget` bytes."
+  @doc "Returns the workspace text for `spec`'s agent, reading `files` within `budget` bytes."
   @spec text(Spec.t(), [String.t()], pos_integer()) :: String.t()
   def text(spec, files, budget), do: told(spec, files, read(spec, files, budget))
 

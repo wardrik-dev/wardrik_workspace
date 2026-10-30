@@ -1,9 +1,14 @@
 defmodule WardrikWorkspace.Writes do
   @moduledoc """
-  The file tools that change files: writing, editing and deleting one. Each changes the file over
-  the version it read. An append, an edit or a delete reads it again and tries once more where
-  another writer got there first, up to eight times. A file written whole holds the labels of what
-  the writing run had read; an append or an edit keeps those it had too.
+  The file tools that change files: `write_file`, `edit_file` and `delete_file`.
+
+  Each change is made over the version read. If another writer got there first, an append, an
+  edit or a delete reads the file again and retries, up to eight times in all.
+
+  A written file gets the labels of what the writing run had read. An append or an edit also keeps
+  the file's existing labels.
+
+  Files are at most 4 MiB.
   """
 
   alias WardrikCore.Context
@@ -17,7 +22,7 @@ defmodule WardrikWorkspace.Writes do
   @max_file_bytes 4 * 1024 * 1024
   @tries 8
 
-  @doc "Writes a file whole, over the version read, or appends to its end."
+  @doc "Writes a whole file over the version read, or appends to its end."
   @spec write_file(Spec.t(), map(), Context.t()) :: {:ok, map()}
   def write_file(spec, args, context) do
     with {:ok, mount, path} <- writable(spec, args[:path]),
@@ -29,14 +34,14 @@ defmodule WardrikWorkspace.Writes do
 
   defp writing(spec, mount, path, args, context), do: replaced(spec, mount, path, args, context)
 
-  @doc "Replaces text in a file: once, or each place it appears with `all`."
+  @doc "Replaces text in a file, once or, with `all`, everywhere it appears."
   @spec edit_file(Spec.t(), map(), Context.t()) :: {:ok, map()}
   def edit_file(spec, args, context) do
     with {:ok, mount, path} <- writable(spec, args[:path]),
          do: retrying(fn -> edited(spec, mount, path, args, context) end)
   end
 
-  @doc "Deletes a file, and says whether it was there."
+  @doc "Deletes a file. The answer says whether it was there."
   @spec delete_file(Spec.t(), map()) :: {:ok, map()}
   def delete_file(spec, args) do
     with {:ok, mount, path} <- writable(spec, args[:path]),

@@ -1,7 +1,8 @@
 defmodule WardrikWorkspace.Reads do
   @moduledoc """
-  The file tools that change nothing: reading a file, listing files, and finding lines. Each answers
-  with the labels of the files it shows, so the run that reads them carries them.
+  The read-only file tools: `read_file`, `list_files` and `search_files`.
+
+  Each answer carries the labels of the files it shows, so the run that reads them carries them.
   """
 
   alias WardrikWorkspace.File
@@ -39,7 +40,7 @@ defmodule WardrikWorkspace.Reads do
     end
   end
 
-  @doc "Lists the files a glob matches, newest first, with each one's size, and when and by whom it was written."
+  @doc "Lists the files a glob matches, newest first, with each one's size, writer and time."
   @spec list_files(Spec.t(), map()) :: {:ok, map()}
   def list_files(spec, args) do
     glob = args[:pattern] || "**"

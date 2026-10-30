@@ -1,17 +1,30 @@
 defmodule WardrikWorkspace.Path do
   @moduledoc """
-  A path names a file within a workspace, as `notes/today.md`. It's normalised before anything reads
-  it: `.` parts and repeated slashes go, and one that's absolute, climbs out with `..`, holds a NUL
-  or a backslash, or is longer than 1,024 bytes is refused. Folders are only the beginnings of
-  paths, so there's nothing to create.
+  Paths and globs within a workspace.
 
-  A glob matches whole paths: `*` within one folder, `?` one character, and `**` across folders, so
-  `notes/*.md` is the Markdown files in `notes`, and `**/*.md` every one.
+  A path names a file, as `notes/today.md`. `normalize/1` drops `.` segments and repeated slashes.
+  It refuses a path that:
+
+    * starts with `/` or `~`
+    * contains a `..` segment
+    * contains a NUL or a backslash
+    * is longer than 1,024 bytes
+
+  Folders are just path prefixes, so there's nothing to create.
+
+  A glob matches whole paths:
+
+    * `*` - any characters within one folder.
+    * `?` - one character.
+    * `**` - any characters across folders.
+
+  For example, `notes/*.md` matches the Markdown files in `notes`, and `**/*.md` matches all of
+  them.
   """
 
   @max_bytes 1024
 
-  @doc "Returns the path `path` names, normalised, or why it names none."
+  @doc "Normalises `path`. Returns `{:error, reason}` if it isn't a valid path."
   @spec normalize(term()) :: {:ok, String.t()} | {:error, String.t()}
   def normalize(path) when is_binary(path) do
     segments = path |> String.split("/") |> Enum.reject(&(&1 in ["", "."]))
@@ -43,7 +56,7 @@ defmodule WardrikWorkspace.Path do
   @spec match?(String.t(), String.t()) :: boolean()
   def match?(glob, path), do: Regex.match?(compile(glob), path)
 
-  @doc "Returns the regular expression `glob` is."
+  @doc "Compiles `glob` to a regular expression."
   @spec compile(String.t()) :: Regex.t()
   def compile(glob) do
     glob
